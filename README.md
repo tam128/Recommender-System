@@ -37,6 +37,8 @@ This command will use simple user-based collaborative filtering to predict the r
 	* **euclid**, when using Euclidean distance to measure user-user similarity and then use the nearest K users to UserID to predict his/her rating for MovieID (through a simple weighted average, where the similarities are the weights)  
 	* **pearson**, when using Pearson Similarity to measure user-user similarity and then use the nearest K users to UserID to predict his/her rating for MovieID (through a simple weighted average, where the similarities are the weights). You should use the Pearson function provided in thr `scipy.stats` module:  https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html  
 	* **cosine**, when using Cosine Similarity to measure user-user similarity and then use the nearest K users to UserID to predict his/her rating for MovieID (through a simple weighted average, where the similarities are the weights). 
+	You should use the cosine similarity function provided in the `scipy.spatial.distance` module. 
+	
 
 For example:  
 `python3 myrex.py predict train.data 20 euclid 101 62` 
