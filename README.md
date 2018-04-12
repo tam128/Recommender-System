@@ -133,6 +133,6 @@ It is very important that:
 * You use the github account that you specified during the test assignment (i.e., this one)  
 
 ### How to submit your assignment
-For this assignment, you must use the repository that was created for you after visiting the classroom link. You need to update the repository to include file `wheresmybus.py` as described above, and other files that are needed for running your program. You need to make sure to commit your code to the repository provided. We will clone all repositories shortly after midnight:  
+For this assignment, you must use the repository that was created for you after visiting the classroom link. You need to update the repository to include file `myrex.py` as described above, and other files that are needed for running your program. You need to make sure to commit your code to the repository provided. We will clone all repositories shortly after midnight:  
 * the day of the deadline **Saturday, April 21st, 2018 (i.e., at 12:15am, Sunday, April 22nd, 2018)**  
 * **no late submissions will be allowed for this assignment**.
