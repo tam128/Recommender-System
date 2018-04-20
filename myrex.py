@@ -67,7 +67,7 @@ elif args.algorithm=="euclid":
 		weight = [i[1] for i in sim_weights][usr_count]
 		print(weight)
 		usr_weight = [i[0] for i in sim_weights][usr_count]
-		rate = movie_rating.loc[movie_rating["userid"]==usr_weight]["rating"].values
+		rate = movie_rating.loc[movie_rating["userid"]==usr_weight]["rating"].values[0]
 		print(rate)
 		predicted_rating += rate * weight
 		weights_sum += weight
