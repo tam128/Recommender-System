@@ -19,8 +19,9 @@ def output(command, train, algorithm, k, userid, movieid, prediction):
 	return
 
 
-def compute_weights(sim_weights, movie_rating):
+def compute_weights(sim_weights, movie_rating, norm):
 	sim_weights = sorted(sim_weights.items(), key=lambda x: x[1], reverse=True)[:args.k]
+	#print(sim_weights)
 	movie_rating = movie_rating.loc[movie_rating['userid'].isin([i[0] for i in sim_weights])]
 	predicted_rating = 0.0
 	weights_sum = 0.0
@@ -29,11 +30,13 @@ def compute_weights(sim_weights, movie_rating):
 	for rating in movie_rating.iterrows():
 		weight = [i[1] for i in sim_weights][usr_count]
 		usr_weight = [i[0] for i in sim_weights][usr_count]
+		if norm:
+			weight = 0.5 * (weight + 1)*4 + 1
+			usr_weight =  0.5 * (usr_weight + 1)*4 + 1
 		rate = movie_rating.loc[movie_rating["userid"]==usr_weight]["rating"].values[0]
 		predicted_rating += rate * weight
 		weights_sum += weight
 		usr_count+=1
-	
 	predicted_rating /= weights_sum
 	output(args.command, args.training_file, args.algorithm, args.k, args.user_id, args.movie_id, predicted_rating)
 	
@@ -53,7 +56,9 @@ if args.command=="predict" and len(vars(args))!=6:
 	sys.exit()
 elif args.command=="predict" and len(vars(args))==6:	
 	df = pd.read_csv(args.training_file, delim_whitespace=True, header=None, dtype={'ID': object}, names=["userid", "movieid", "rating", "timestamp"])
-
+elif args.k < 0:
+	print("k must be positive")
+	sys.exit()
 	
 # user id | item id | rating | timestamp
 df_user = df.loc[df['userid'] == args.user_id][["rating", "movieid"]]
@@ -67,6 +72,7 @@ if args.algorithm=="average":
 	
 elif args.algorithm=="euclid":
 	sim_weights = {}
+	norm = False
 	for i in movie_rating["userid"]:
 		if i!=args.user_id:
 			df_other = df.loc[(df['userid'] == i)][["rating", "movieid"]]
@@ -75,14 +81,14 @@ elif args.algorithm=="euclid":
 			dist = euclidean(df_both.loc[:,("rating" + str(args.user_id))].values.ravel(), df_both.loc[:,("rating" + str(i))].values.ravel())
 			sim_weights[i] = 1.0 / (1.0 + dist)
 		
-	print(sim_weights)	
-	compute_weights(sim_weights, movie_rating)
+	compute_weights(sim_weights, movie_rating, norm)
 
 elif args.algorithm=="pearson":
 	sim_weights = {}
+	norm = True
 	df_user = df.loc[df['userid'] == args.user_id][["rating", "movieid"]]
 	#Normalize target user ratings
-	df_user["rating"] = (2*(df_user["rating"] - df_user["rating"].min()) - (df_user["rating"].max() - df_user["rating"].min())) / (df_user["rating"].max() - df_user["rating"].min())
+	df_user["rating"] = (2*(df_user["rating"] - 1) - 4) / 4
 	print(df_user)
 	movie_rating = df.loc[df['movieid'] == args.movie_id]
 	
@@ -90,17 +96,20 @@ elif args.algorithm=="pearson":
 	for j in movie_rating["userid"]:
 		if j!=args.user_id:
 			df_other = df.loc[(df['userid'] == j)][["rating", "movieid"]]
-			df_other["rating"] = (2*(df_other["rating"] - df_other["rating"].min()) - (df_other["rating"].max() - df_other["rating"].min())) / (df_other["rating"].max() - df_other["rating"].min())
+			df_other["rating"] = (2*(df_other["rating"] - 1) - 4) / 4
 			df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(args.user_id, j))
 			df_both = df_both.fillna(0)
-			
-			dist = stats.pearsonr(df_both.loc[:,("rating" + str(args.user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
-			sim_weights[j] = 1.0 / (1.0 + dist[0])
-	print(sim_weights)		
-	compute_weights(sim_weights, movie_rating)
+			print(df_other)
+			movie_rating.loc[movie_rating['userid'] == j]["rating"] =  df_other.loc[df_other["movieid"] == args.movie_id]["rating"].values
+				
+			#dist = stats.pearsonr(df_both.loc[:,("rating" + str(args.user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
+			#sim_weights[j] = 1.0 / (1.0 + dist[0])	
+		print(movie_rating)
+	compute_weights(sim_weights, movie_rating, norm)
 	
 elif args.algorithm=="cosine":
 	sim_weights = {}
+	norm = True
 	df_user = df.loc[df['userid'] == args.user_id][["rating", "movieid"]]
 	#Normalize target user ratings
 	df_user["rating"] = (2*(df_user["rating"] - df_user["rating"].min()) - (df_user["rating"].max() - df_user["rating"].min())) / (df_user["rating"].max() - df_user["rating"].min())
