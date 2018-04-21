@@ -67,7 +67,8 @@ def predict(training_file, k, algorithm, user_id, movie_id, output):
 		df = df.loc[df['movieid'] == movie_id]
 		predicted_rating = df["rating"].mean()
 		if output:
-			output_predict(command, training_file, algorithm, k, user_id, movie_id, predicted_rating, output)
+			output_predict(command, training_file, algorithm, k, user_id, movie_id, predicted_rating)
+		return predicted_rating
 		
 	elif algorithm=="euclid":
 		sim_weights = {}
@@ -90,7 +91,6 @@ def predict(training_file, k, algorithm, user_id, movie_id, output):
 		
 		#Normalize target user ratings
 		df_user["rating"] = (2*(df_user["rating"] - 1) - 4) / 4
-		print(df_user)
 		movie_rating = df.loc[df['movieid'] == movie_id]
 		
 		usr_count=0
@@ -127,28 +127,43 @@ def predict(training_file, k, algorithm, user_id, movie_id, output):
 				df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(user_id, j))
 				df_both = df_both.fillna(0)
 				dist = cosine(df_both.loc[:,("rating" + str(user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
-				if math.isnan(dist): 
+				if dist == -1:
 					sim_weights[j] = 0
 				else:
-					sim_weights[j] = 1.0 / (1.0 + dist)	
+					sim_weights[j] = 1.0 / (1.0 + dist)
+				if math.isnan(sim_weights[j]):
+					sim_weights[j] = 0	
 		return compute_weights(sim_weights, movie_rating, norm, output)	
 
 
 def evaluate():
 	df_test = pd.read_csv(test_file, delim_whitespace=True, header=None, dtype={'ID': object}, names=["userid", "movieid", "rating", "timestamp"])
 	output = False
-
+	rating_list = []
+	predicted_list = []
+	
 	# user id | item id | rating | timestamp
 	rms = 0
+	count = 0
 	for i in range(len(df_test)):
 		user_id = df_test.loc[i, "userid"]
 		movie_id = df_test.loc[i, "movieid"]
 		rating = df_test.loc[i, "rating"]
+		#print(rating)
 		predicted_rating = predict(training_file, k, algorithm, user_id, movie_id, output)
-		
-		rms += rmse(rating, predicted_rating)
-		#sqrt(mean_squared_error(rating, predicted_rating))
-	print(rms)
+		#print(predicted_rating)
+		if not math.isnan(predicted_rating):
+			rating_list.append(rating)
+			predicted_list.append(predicted_rating)
+			count+=1
+	rms = sqrt(mean_squared_error(rating_list, predicted_list))
+	
+	print("myrex.command\t\t= " + command)
+	print("myrex.training\t\t= " + training_file)
+	print("myrex.training\t\t= " + test_file)
+	print("myrex.algorithm\t\t= " + algorithm)
+	print("myrex.k\t\t\t= " + str(k))
+	print("myrex.RMSE\t= " + str(rms))
 	
 
 if sys.argv[1]=="predict" and len(sys.argv)!=7:
