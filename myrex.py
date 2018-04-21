@@ -20,8 +20,10 @@ def output(command, train, algorithm, k, userid, movieid, prediction):
 
 
 def compute_weights(sim_weights, movie_rating, norm):
-	sim_weights = sorted(sim_weights.items(), key=lambda x: x[1], reverse=True)[:args.k]
-	#print(sim_weights)
+	if k == 0:
+		sim_weights = sorted(sim_weights.items(), key=lambda x: x[1], reverse=True)
+	else:
+		sim_weights = sorted(sim_weights.items(), key=lambda x: x[1], reverse=True)[:k]
 	movie_rating = movie_rating.loc[movie_rating['userid'].isin([i[0] for i in sim_weights])]
 	predicted_rating = 0.0
 	weights_sum = 0.0
@@ -39,96 +41,109 @@ def compute_weights(sim_weights, movie_rating, norm):
 	predicted_rating /= weights_sum
 	if norm:
 		predicted_rating =  0.5 * (predicted_rating + 1)*4 + 1
-	output(args.command, args.training_file, args.algorithm, args.k, args.user_id, args.movie_id, predicted_rating)
+	output(command, training_file, algorithm, k, user_id, movie_id, predicted_rating)
 	
+	
+
+	
+def predict():
+	df = pd.read_csv(training_file, delim_whitespace=True, header=None, dtype={'ID': object}, names=["userid", "movieid", "rating", "timestamp"])
+
+	# user id | item id | rating | timestamp
+	df_user = df.loc[df['userid'] == user_id][["rating", "movieid"]]
+	movie_rating = df.loc[df['movieid'] == movie_id]
+
+	if algorithm=="average":
+		df = df.loc[df['movieid'] == movie_id]
+		predicted_rating = df["rating"].mean()
+		output(command, training_file, algorithm, k, user_id, movie_id, predicted_rating)
+		
+	elif algorithm=="euclid":
+		sim_weights = {}
+		norm = False
+		for i in movie_rating["userid"]:
+			if i!=user_id:
+				df_other = df.loc[(df['userid'] == i)][["rating", "movieid"]]
+				df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(user_id, i))
+				df_both = df_both.dropna()
+				dist = euclidean(df_both.loc[:,("rating" + str(user_id))].values.ravel(), df_both.loc[:,("rating" + str(i))].values.ravel())
+				sim_weights[i] = 1.0 / (1.0 + dist)
+			
+		compute_weights(sim_weights, movie_rating, norm)
+
+		
+	elif algorithm=="pearson":
+		sim_weights = {}
+		norm = True
+		df_user = df.loc[df['userid'] == user_id][["rating", "movieid"]]
+		
+		#Normalize target user ratings
+		df_user["rating"] = (2*(df_user["rating"] - 1) - 4) / 4
+		print(df_user)
+		movie_rating = df.loc[df['movieid'] == args.movie_id]
+		
+		usr_count=0
+		for j in movie_rating["userid"]:	
+			if j!=user_id:
+				df_other = df.loc[(df['userid'] == j)][["rating", "movieid"]]
+				df_other["rating"] = (2*(df_other["rating"] - 1) - 4) / 4
+				df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(args.user_id, j))
+				df_both = df_both.fillna(0)
+				dist = stats.pearsonr(df_both.loc[:,("rating" + str(user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
+				sim_weights[j] = 1.0 / (1.0 + dist[0])	
+		compute_weights(sim_weights, movie_rating, norm)	
+		
+		
+	elif algorithm=="cosine":
+		sim_weights = {}
+		norm = True
+		df_user = df.loc[df['userid'] == user_id][["rating", "movieid"]]
+		
+		#Normalize target user ratings
+		df_user["rating"] = (2*(df_user["rating"] - 1) - 4) / 4
+		movie_rating = df.loc[df['movieid'] == movie_id]
+		
+		usr_count=0
+		for j in movie_rating["userid"]:	
+			if j!=user_id:
+				df_other = df.loc[(df['userid'] == j)][["rating", "movieid"]]
+				df_other["rating"] = (2*(df_other["rating"] - 1) - 4) / 4
+				df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(args.user_id, j))
+				df_both = df_both.fillna(0)
+				dist = cosine(df_both.loc[:,("rating" + str(user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
+				sim_weights[j] = 1.0 / (1.0 + dist)	
+				
+		compute_weights(sim_weights, movie_rating, norm)	
+
+
+def evaluate():
+	print("hi")
+	
+
 	
 #Get input .csv file, px, and results filename
-parser = argparse.ArgumentParser()
-parser.add_argument("command", nargs='?', help="command")
-parser.add_argument("training_file", nargs='?', help="training file")
-parser.add_argument("k", nargs='?', type=int, help="K nearest users")
-parser.add_argument("algorithm", nargs='?', help="Algorithm")
-parser.add_argument("user_id", nargs='?', type=int, help="user ID")
-parser.add_argument("movie_id", nargs='?', type=int, help="movie ID")
 
-
-args = parser.parse_args()
-if args.command=="predict" and len(vars(args))!=6:
+if sys.argv[1]=="predict" and len(sys.argv)!=7:
 	print("Must supply 5 arguments for predict command\n")
 	sys.exit()
-elif args.command=="evaluate" and len(vars(args))!=6:
-	
-elif args.command=="predict" and len(vars(args))==6:	
-	df = pd.read_csv(args.training_file, delim_whitespace=True, header=None, dtype={'ID': object}, names=["userid", "movieid", "rating", "timestamp"])
-elif args.k < 0:
+elif sys.argv[1]=="evaluate" and len(sys.argv)!=6:
+	print("Must supply 6 arguments for evaluate command\n")
+	sys.exit()
+elif sys.argv[1]=="predict" and len(sys.argv)==7:	
+	command = sys.argv[1]
+	training_file = sys.argv[2]
+	k = int(sys.argv[3])
+	algorithm = sys.argv[4]
+	user_id = int(sys.argv[5])
+	movie_id = int(sys.argv[6])
+	predict()
+elif sys.argv[1]=="evaluate" and len(sys.argv)==6:	
+	command = sys.argv[1]
+	training_file = sys.argv[2]
+	k = int(sys.argv[3])
+	algorithm = sys.argv[4]
+	test_file = sys.argv[5]
+	evaluate()
+elif int(sys.argv[3]) < 0:
 	print("k must be positive")
 	sys.exit()
-	
-# user id | item id | rating | timestamp
-df_user = df.loc[df['userid'] == args.user_id][["rating", "movieid"]]
-movie_rating = df.loc[df['movieid'] == args.movie_id]
-
-
-if args.algorithm=="average":
-	df = df.loc[df['movieid'] == args.movie_id]
-	predicted_rating = df["rating"].mean()
-	output(args.command, args.training_file, args.algorithm, args.k, args.user_id, args.movie_id, predicted_rating)
-	
-elif args.algorithm=="euclid":
-	sim_weights = {}
-	norm = False
-	for i in movie_rating["userid"]:
-		if i!=args.user_id:
-			df_other = df.loc[(df['userid'] == i)][["rating", "movieid"]]
-			df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(args.user_id, i))
-			df_both = df_both.dropna()
-			dist = euclidean(df_both.loc[:,("rating" + str(args.user_id))].values.ravel(), df_both.loc[:,("rating" + str(i))].values.ravel())
-			sim_weights[i] = 1.0 / (1.0 + dist)
-		
-	compute_weights(sim_weights, movie_rating, norm)
-
-elif args.algorithm=="pearson":
-	sim_weights = {}
-	norm = True
-	df_user = df.loc[df['userid'] == args.user_id][["rating", "movieid"]]
-	#Normalize target user ratings
-	df_user["rating"] = (2*(df_user["rating"] - 1) - 4) / 4
-	print(df_user)
-	movie_rating = df.loc[df['movieid'] == args.movie_id]
-	
-	usr_count=0
-	for j in movie_rating["userid"]:	
-		if j!=args.user_id:
-			df_other = df.loc[(df['userid'] == j)][["rating", "movieid"]]
-			df_other["rating"] = (2*(df_other["rating"] - 1) - 4) / 4
-			df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(args.user_id, j))
-			df_both = df_both.fillna(0)
-			dist = stats.pearsonr(df_both.loc[:,("rating" + str(args.user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
-			sim_weights[j] = 1.0 / (1.0 + dist[0])	
-	compute_weights(sim_weights, movie_rating, norm)	
-	
-elif args.algorithm=="cosine":
-	sim_weights = {}
-	norm = True
-	df_user = df.loc[df['userid'] == args.user_id][["rating", "movieid"]]
-	#Normalize target user ratings
-	df_user["rating"] = (2*(df_user["rating"] - 1) - 4) / 4
-	movie_rating = df.loc[df['movieid'] == args.movie_id]
-	
-	usr_count=0
-	for j in movie_rating["userid"]:	
-		if j!=args.user_id:
-			df_other = df.loc[(df['userid'] == j)][["rating", "movieid"]]
-			df_other["rating"] = (2*(df_other["rating"] - 1) - 4) / 4
-			df_both = pd.merge(df_user, df_other, on='movieid', how='inner', suffixes=(args.user_id, j))
-			df_both = df_both.fillna(0)
-			dist = cosine(df_both.loc[:,("rating" + str(args.user_id))].values.ravel(), df_both.loc[:,("rating" + str(j))].values.ravel())
-			sim_weights[j] = 1.0 / (1.0 + dist)	
-	compute_weights(sim_weights, movie_rating, norm)	
-
-
-	
-
-	
-	
-	
